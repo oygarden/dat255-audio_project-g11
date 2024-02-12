@@ -1,5 +1,7 @@
-dat255-audio_project-g11
+DAT255 Audio Classification Project
 ==============================
+
+![Python workflow](https://github.com/oygarden/dat255-audio_project-g11/actions/workflows/python-app.yml/badge.svg)
 
 Deep learning audio classification
 
