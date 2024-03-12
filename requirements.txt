@@ -12,3 +12,10 @@ gradio
 deeplake
 unzip
 imageio
+fastai
+numpy
+pandas
+matplotlib
+gradio
+torch
+flask
