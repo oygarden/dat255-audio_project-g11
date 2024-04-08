@@ -1,42 +1,152 @@
-from flask import Flask, request, redirect, url_for
-import os
+from flask import Flask, request, render_template, send_from_directory, url_for
+from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
+import os
+import shutil
+from pydub import AudioSegment
+import random
+from generate_spectrogram import generate_spectrograms
+import librosa
+import numpy as np
+import imageio
+from matplotlib import cm
 
-UPLOAD_FOLDER = '../../data/raw'
-ALLOWED_EXTENSIONS = {'wav'}
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['SECRET_KEY'] = 'your_secret_key'
+
+# Get the system path to the current file
+current_file_path = os.path.realpath(__file__)
+
+# Get the system path to the project directory
+project_dir = os.path.dirname(os.path.dirname(current_file_path))
+
+# Set the upload folder to be the system path to the project + /src/app/uploads
+app.config['UPLOAD_FOLDER'] = os.path.join(project_dir, 'app', 'uploads')
+print("Upload folder:", app.config['UPLOAD_FOLDER'])
+
+socketio = SocketIO(app, logger=True, engineio_logger=True, max_http_buffer_size=1e8)
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 def allowed_file(filename):
-    return '.' in filename and \
-        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'wav'}
 
-@app.route('/', methods=['GET', 'POST'])
-def home():
-    if request.method == 'POST':
-        # check if the post request has the file part
-        if 'file' not in request.files:
-            return redirect(request.url)
-        file = request.files['file']
-        # if user does not select file, browser also
-        # submit an empty part without filename
-        if file.filename == '':
-            return redirect(request.url)
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            return redirect(url_for('home'))
+@socketio.on('song_uploaded')
+def handle_song_upload(message):
+    print("Received song upload message")
+    
+    upload_folder = app.config['UPLOAD_FOLDER']
+
+    # Clear existing files in the upload folder
+    clear_directory(upload_folder)
+
+    # Proceed with saving the new song
+    filename = secure_filename(message['filename'])
+    file_path = os.path.join(upload_folder, filename)
+    save_file(file_path, message['song_data'])
+    
+    segment_length = 2 # seconds
+    split_song(file_path, segment_length * 1000)
+    
+    song_url = request.host_url + 'songs/' + filename
+    emit('song_ready', {'song_url': song_url})
+    
+    generate_and_predict_spectrograms(os.path.join(upload_folder, 'segments'), os.path.join(upload_folder, '..', 'static'))
+    
+def save_file(file_path, song_data):
+    print("Saving file to", file_path)
+    # Ensure song_data is a bytes-like object
+    if isinstance(song_data, bytes):
+        dir_path = os.path.dirname(file_path)
+        os.makedirs(dir_path, exist_ok=True)
+        with open(file_path, 'wb') as f:
+            f.write(song_data)
+    else:
+        print("Error: song_data is not in bytes format")
+
+@app.route('/songs/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+def split_song(file_path, segment_length_ms):
+    segment_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'segments')
+    if not os.path.isdir(segment_dir):
+        print("Creating directory", segment_dir)
+        os.makedirs(segment_dir, exist_ok=True)
         
-@app.route('/play/<filename>')
-def play_audio(filename):
-    return '''
-    <audio controls>
-        <source src="{}" type="audio/wav">
-        Your browser does not support the audio element.
-    </audio>
-    <div id="spectrogram"></div>
-    '''.format(url_for('uploaded_file', filename=filename))
+    song = AudioSegment.from_wav(file_path)
+    for i in range(0, len(song), segment_length_ms):
+        segment = song[i:i + segment_length_ms]
+        print("Exporting segment", i // segment_length_ms)
+        segment.export(os.path.join(segment_dir, f"segment_{i // segment_length_ms}.wav"), format="wav")
+        
+
+def clear_directory(directory):
+    for filename in os.listdir(directory):
+        file_path = os.path.join(directory, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
+
+def generate_and_predict_spectrograms(audio_dir, output_dir, sr=44100):
+    # Clear the output directory at the start of each call
+    clear_directory(output_dir)
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    audio_files = [f for f in os.listdir(audio_dir) if f.endswith('.wav')]
+
+    # Sort the audio files by the segment number
+    audio_files.sort(key=lambda f: int(f.split('_')[1].split('.')[0]))
+
+    for file in audio_files:
+        # Assuming the filename format is "segment_x.wav"
+        segment_index = file.split('_')[1].split('.')[0]
+
+        audio_path = os.path.join(audio_dir, file)
+        y, sr = librosa.load(audio_path, sr=sr, mono=True)
+
+        # Generate spectrogram for the audio segment
+        mel_spec = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=22000)
+        log_mel_spec = librosa.power_to_db(mel_spec, ref=np.max)
+        norm_log_mel_spec = (log_mel_spec - log_mel_spec.min()) / (log_mel_spec.max() - log_mel_spec.min())
+        colored_spec = cm.viridis(norm_log_mel_spec)
+        colored_spec_rgb = (colored_spec[..., :3] * 255).astype(np.uint8)
+
+        # Save spectrogram
+        spec_filename = f"segment_{segment_index}_spectrogram.png"
+        save_path = os.path.join(output_dir, spec_filename)
+        imageio.imwrite(save_path, colored_spec_rgb)
+
+        # Make a mock prediction on the spectrogram
+        prediction = mock_predict_on_segment(save_path)
+        
+        spectrogram_url = url_for('static', filename=spec_filename)
+        
+        # Emit prediction to the client
+        emit('prediction_ready', {'index': segment_index, 'prediction': prediction, 'spectrogram_url': spectrogram_url})
+
+
+def mock_predict_on_segment(segment_path):
+    # Add a short delay to simulate processing time
+    import time
+    time.sleep(1)
+    
+    # Mock prediction logic as before, adapted for a single segment
+    print(f"Predicting on segment: {segment_path}")
+    num_predictions = random.randint(1, 10)
+    prediction = [random.choice(['drums', 'guitar', 'bass', 'vocals', 'synth', 'violin', 'tuba']) for _ in range(num_predictions)]
+    print("Prediction:", prediction)
+    return prediction
+
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
+    socketio.run(app, debug=True)
