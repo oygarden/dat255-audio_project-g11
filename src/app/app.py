@@ -5,7 +5,6 @@ import os
 import shutil
 from pydub import AudioSegment
 import random
-from generate_spectrogram import generate_spectrograms
 import librosa
 import numpy as np
 import imageio
@@ -14,7 +13,6 @@ from matplotlib import cm
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
-
 # Get the system path to the current file
 current_file_path = os.path.realpath(__file__)
 
@@ -22,9 +20,17 @@ current_file_path = os.path.realpath(__file__)
 project_dir = os.path.dirname(os.path.dirname(current_file_path))
 
 # Set the upload folder to be the system path to the project + /src/app/uploads
-app.config['UPLOAD_FOLDER'] = os.path.join(project_dir, 'app', 'uploads')
+upload_folder = os.path.join(project_dir, 'app', 'uploads')
+app.config['UPLOAD_FOLDER'] = upload_folder
 print("Upload folder:", app.config['UPLOAD_FOLDER'])
 
+def ensure_dir_exists(dir_path):
+    """Ensure that a directory exists, create it if it doesn't."""
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+        
+ensure_dir_exists(upload_folder)
+    
 socketio = SocketIO(app, logger=True, engineio_logger=True, max_http_buffer_size=1e8)
 
 @app.route('/')
@@ -54,7 +60,11 @@ def handle_song_upload(message):
     song_url = request.host_url + 'songs/' + filename
     emit('song_ready', {'song_url': song_url})
     
-    generate_and_predict_spectrograms(os.path.join(upload_folder, 'segments'), os.path.join(upload_folder, '..', 'static'))
+    static_path = os.path.join(upload_folder, '..','static')
+    
+    ensure_dir_exists(static_path)
+    
+    generate_and_predict_spectrograms(os.path.join(upload_folder, 'segments'), static_path)
     
 def save_file(file_path, song_data):
     print("Saving file to", file_path)
