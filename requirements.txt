@@ -31,3 +31,7 @@ requests
 IPython
 shutil
 imageio
+flask
+pydub
+numpy
+random

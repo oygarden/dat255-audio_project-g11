@@ -116,7 +116,7 @@
             
             audioPlayerContainer.appendChild(audio);
 
-            var segmentLength = 2; // Length of each segment in seconds
+            var segmentLength = 3; // Length of each segment in seconds
     
             audio.addEventListener('timeupdate', function() {
                 var currentSegmentIndex = Math.floor(audio.currentTime / segmentLength);

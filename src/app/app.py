@@ -10,6 +10,8 @@ import numpy as np
 import imageio
 from matplotlib import cm
 
+from fastai.vision.all import *
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -38,7 +40,13 @@ def index():
     return render_template('index.html')
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'wav'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'wav', 'mp3', 'flac', 'ogg', 'm4a'}
+
+def convert_to_wav(file_path):
+    audio = AudioSegment.from_file(file_path)
+    wav_path = file_path.rsplit('.', 1)[0] + '.wav'
+    audio.export(wav_path, format="wav")
+    return wav_path
 
 @socketio.on('song_uploaded')
 def handle_song_upload(message):
@@ -54,7 +62,12 @@ def handle_song_upload(message):
     file_path = os.path.join(upload_folder, filename)
     save_file(file_path, message['song_data'])
     
-    segment_length = 2 # seconds
+    # Convert to wav if necessary
+    if not filename.rsplit('.', 1)[1].lower() == 'wav':
+        file_path = convert_to_wav(file_path)
+        filename = filename.rsplit('.', 1)[0] + '.wav'
+    
+    segment_length = 3 # seconds
     split_song(file_path, segment_length * 1000)
     
     song_url = request.host_url + 'songs/' + filename
@@ -137,7 +150,9 @@ def generate_and_predict_spectrograms(audio_dir, output_dir, sr=44100):
         imageio.imwrite(save_path, colored_spec_rgb)
 
         # Make a mock prediction on the spectrogram
-        prediction = mock_predict_on_segment(save_path)
+        #prediction = mock_predict_on_segment(save_path)
+        
+        prediction = predict_on_segment(save_path)
         
         spectrogram_url = url_for('static', filename=spec_filename)
         
@@ -157,6 +172,33 @@ def mock_predict_on_segment(segment_path):
     print("Prediction:", prediction)
     return prediction
 
+def get_x(r): 
+    return r
+
+def get_y(r):
+    return null
+
+def predict_on_segment(segment_path):
+    
+    # Load the pre-trained model
+    model_path = os.path.join(project_dir,'..','models', 'instrument_classifier1.pkl')
+    learn = load_learner(model_path)
+    
+    # Make a prediction
+    pred, _, probs = learn.predict(segment_path)
+    
+    # Apply a threshold to convert probabilities to binary predictions
+    threshold = 0.1
+    binary_preds = (probs > threshold).numpy()
+
+    # Get the list of possible classes from the learner's data loaders
+    class_names = learn.dls.vocab
+
+    # Filter class names based on the binary predictions
+    predicted_labels = [class_names[i] for i in range(len(class_names)) if binary_preds[i]]
+    
+    print("Predicted labels:", predicted_labels)
+    return predicted_labels
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
