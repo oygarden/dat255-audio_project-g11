@@ -35,3 +35,4 @@ flask
 pydub
 numpy
 random
+tqdm

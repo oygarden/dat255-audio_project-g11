@@ -12,6 +12,9 @@ from matplotlib import cm
 
 from fastai.vision.all import *
 
+from huggingface_hub import hf_hub_url, hf_hub_download
+from fastai.learner import load_learner
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -180,10 +183,6 @@ def get_y(r):
 
 def predict_on_segment(segment_path):
     
-    # Load the pre-trained model
-    model_path = os.path.join(project_dir,'..','models', 'instrument_classifier1.pkl')
-    learn = load_learner(model_path)
-    
     # Make a prediction
     pred, _, probs = learn.predict(segment_path)
     
@@ -199,6 +198,25 @@ def predict_on_segment(segment_path):
     
     print("Predicted labels:", predicted_labels)
     return predicted_labels
+
+# Load the pre-trained model
+
+# local
+#model_path = os.path.join(project_dir,'..','models', 'instrument_classifier3.pkl')
+#learn = load_learner(model_path)
+
+
+# Huggingface
+REPO = "gruppe11/audio-classifier"
+FILENAME = "instrument_classifier3.pkl"
+
+model_url = hf_hub_url(REPO, FILENAME)
+
+model_path = hf_hub_download(REPO, FILENAME)
+
+learn = load_learner(model_path)
+
+print("Model loaded")
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
