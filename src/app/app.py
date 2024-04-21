@@ -220,9 +220,8 @@ def predict_on_segment(segment_path):
 # Load the pre-trained model
 
 # local
-model_path = os.path.join(project_dir,'..','models', 'instrument_classifier3.pkl')
-learn = load_learner(model_path)
-
+#model_path = os.path.join(project_dir,'..','models', 'instrument_classifier3.pkl')
+#learn = load_learner(model_path)
 
 # Huggingface
 REPO = "gruppe11/audio-classifier"
@@ -230,9 +229,9 @@ FILENAME = "instrument_classifier4.pkl"
 
 model_url = hf_hub_url(REPO, FILENAME)
 
-#model_path = hf_hub_download(REPO, FILENAME)
+model_path = hf_hub_download(REPO, FILENAME)
 
-#learn = load_learner(model_path)
+learn = load_learner(model_path)
 
 print("Model loaded: " + str(learn))
 
