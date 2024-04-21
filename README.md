@@ -38,6 +38,7 @@ After the mixed clips have been generated, you can run the `generate_spectrogram
 
 # Training a model
 
+Training a model can be done by running the `train_model.py` script. `python src/models/train_model.py`. Parameteres can be adjusted in the script. The model will be saved in `models` directory. If you wan to try this model with the Flask application, you can comment out the huggingface loader, and instead use the local loader. 
 
 
 Project Description
