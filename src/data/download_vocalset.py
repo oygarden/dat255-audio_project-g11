@@ -9,12 +9,12 @@ import requests
 from tqdm import tqdm
 
 def download_and_unzip(url, dir_name):
-    if not os.path.isdir(dir_name):
+    if not os.path.isdir(dir_name) or not os.listdir(dir_name):
         # Download the file
         response = requests.get(url, stream=True)
         total_size_in_bytes= int(response.headers.get('content-length', 0))
-        block_size = 1024 #1 Kibibyte
-        progress_bar = tqdm(total=total_size_in_bytes, unit='iB', unit_scale=True)
+        block_size = 1024
+        progress_bar = tqdm(total=total_size_in_bytes, unit='iB', unit_scale=True, desc="Downloading VocalSet")
         zip_file_name = f"{dir_name}.zip"
         with open(zip_file_name, 'wb') as f:
             for data in response.iter_content(block_size):
@@ -31,6 +31,10 @@ def download_and_unzip(url, dir_name):
         # Remove the zip file
         os.remove(zip_file_name)
         
+        print("Downloaded and unzipped VocalSet dataset")
+    else: 
+        print("VocalSet dataset already downloaded")
+        
 
 def download_vocalset(directory):
     
@@ -41,7 +45,6 @@ def download_vocalset(directory):
     
     download_and_unzip(url, DOWNLOAD_PATH)
     
-    print("Downloaded and unzipped VocalSet dataset")
     
     # Remove the __MACOSX directory if it exists
     macosx_dir = Path(DOWNLOAD_PATH) / "__MACOSX"
@@ -50,8 +53,19 @@ def download_vocalset(directory):
     
     base_dir = DOWNLOAD_PATH / "FULL"
     
+    # Check is metadata exists
+    if os.path.exists(DOWNLOAD_PATH / 'metadata.csv'):
+        print("VocalSet metadata already exists")
+        return pd.read_csv(DOWNLOAD_PATH / 'metadata.csv')
+    
     # Create a metadata file
     data = []
+    
+    # Get the total number of .wav files
+    total_files = sum([len(files) for r, d, files in os.walk(base_dir) if any(f.endswith('.wav') for f in files)])
+
+    # Create a progress bar
+    pbar = tqdm(total=total_files, desc="Building VocalSet metadata", unit="file")
     
     for root, dirs, files in os.walk(base_dir):
         for file in files:
@@ -59,12 +73,23 @@ def download_vocalset(directory):
                 data.append({
                     "fname": file,
                     "path": os.path.join(root,file),
-                    "label": "Vocal"
+                    "label": "Vocal",
+                    "dataset": "VocalSet"
                 })
+                
+                # Update progress bar
+                pbar.update(1)
+                
+    pbar.close()
                     
     df = pd.DataFrame(data)
+    
+    # Save the metadata
+    df.to_csv(DOWNLOAD_PATH / 'metadata.csv', index=False)
     
     return df
     
 if __name__ == '__main__':
-    download_vocalset()
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
+    directory = PROJECT_ROOT / 'data' / 'external'
+    download_vocalset(directory)

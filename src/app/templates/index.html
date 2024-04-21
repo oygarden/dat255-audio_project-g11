@@ -143,7 +143,9 @@
             }
 
             // Update the spectrograms dictionary
-            spectrograms[data.index] = data.spectrogram_url;
+            // There was a bug where it displayed spectrograms from a previously uploaded song
+            // Fix: Add a timestamp to the URL to force the browser to reload the image because the URL has changed
+            spectrograms[data.index] = data.spectrogram_url + '?t=' + new Date().getTime();
         });
         
 

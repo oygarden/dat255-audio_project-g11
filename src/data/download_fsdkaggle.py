@@ -11,7 +11,7 @@ def download_and_unzip(url, dir_name):
         response = requests.get(url)
         total_size_in_bytes= int(response.headers.get('content-length', 0))
         block_size = 1024 #1 Kibibyte
-        progress_bar = tqdm(total=total_size_in_bytes, unit='iB', unit_scale=True)
+        progress_bar = tqdm(total=total_size_in_bytes, unit='iB', unit_scale=True, desc="Writing FSDKaggle2018")
         zip_file_name = f"{dir_name}.zip"
         with open(zip_file_name, 'wb') as f:
             for data in response.iter_content(block_size):
@@ -43,7 +43,7 @@ def download_fsdkaggle(directory):
     
     print("Downloaded and unzipped FSDKaggle2018 dataset")
     
-    metadata = pd.read_csv(DOWNLOAD_PATH / 'FSDKaggle2018.meta' / 'train_post_competition.csv')
+    metadata = pd.read_csv(DOWNLOAD_PATH / 'FSDKaggle2018.meta' / 'FSDKaggle2018.meta' / 'train_post_competition.csv')
     
     # Remove license column
     metadata = metadata.drop(columns=['license'])
@@ -55,11 +55,46 @@ def download_fsdkaggle(directory):
     metadata = metadata.drop(columns=['manually_verified'])
     
     # Add "path" column
-    metadata['path'] = metadata['fname'].apply(lambda x: str(DOWNLOAD_PATH / 'FSDKaggle2018.audio_train' / x))
+    metadata['path'] = metadata['fname'].apply(lambda x: str(DOWNLOAD_PATH / 'FSDKaggle2018.audio_train' / 'FSDKaggle2018.audio_train' / x))
     
-    print(metadata.head())
+    # Add dataset column
+    metadata['dataset'] = 'FSDKaggle2018'
+    
+    # Filter out non-music classes
+    # musical labels
+    musical_labels = ['Hi-hat', 
+                    'Saxophone',
+                    'Trumpet', 
+                    'Glockenspiel', 
+                    'Cello',
+                    'Clarinet',
+                    'Snare_drum',
+                    'Oboe', 
+                    'Flute',
+                    'Chime', 
+                    'Bass_drum',
+                    'Harmonica', 
+                    'Gong',
+                    'Double_bass',
+                    'Tambourine', 
+                    'Cowbell', 
+                    'Electric_piano',
+                    'Acoustic_guitar', 
+                    'Violin_or_fiddle',
+                    'Finger_snapping', 
+                    'Vocal',
+                    'Electric_guitar',
+                    'Organ',
+                    'Piano',
+                    'Drums',
+                    'Guitar'
+                    ]
+    
+    musical_meta = metadata[metadata['label'].isin(musical_labels)]
      
-    return metadata
+    return musical_meta
 
 if __name__ == '__main__':
-    download_fsdkaggle()
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
+    directory = PROJECT_ROOT / 'data' / 'external'
+    download_fsdkaggle(directory)

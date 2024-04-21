@@ -90,3 +90,5 @@ target/
 
 # models
 models/*.pkl
+
+kaggle.json

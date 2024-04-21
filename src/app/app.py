@@ -1,5 +1,6 @@
-from flask import Flask, request, render_template, send_from_directory, url_for
+from flask import Flask, request, render_template, send_from_directory, url_for, request
 from flask_socketio import SocketIO, emit
+from tqdm import tqdm
 from werkzeug.utils import secure_filename
 import os
 import shutil
@@ -51,36 +52,46 @@ def convert_to_wav(file_path):
     audio.export(wav_path, format="wav")
     return wav_path
 
+@socketio.on('disconnect')
+def handle_disconnect():
+    session_id = request.sid
+    session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
+    clear_directory(session_dir)
+    os.rmdir(session_dir)
+
 @socketio.on('song_uploaded')
 def handle_song_upload(message):
-    print("Received song upload message")
     
-    upload_folder = app.config['UPLOAD_FOLDER']
+    session_id = request.sid
+    session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
+    os.makedirs(session_dir, exist_ok=True)
+
+    print("Received song upload message")
 
     # Clear existing files in the upload folder
-    clear_directory(upload_folder)
+    clear_directory(session_dir)
 
     # Proceed with saving the new song
     filename = secure_filename(message['filename'])
-    file_path = os.path.join(upload_folder, filename)
-    save_file(file_path, message['song_data'])
+    path_to_audio = os.path.join(session_dir, filename)
+    save_file(path_to_audio, message['song_data'])
     
     # Convert to wav if necessary
     if not filename.rsplit('.', 1)[1].lower() == 'wav':
-        file_path = convert_to_wav(file_path)
+        path_to_audio = convert_to_wav(path_to_audio)
         filename = filename.rsplit('.', 1)[0] + '.wav'
     
     segment_length = 3 # seconds
-    split_song(file_path, segment_length * 1000)
+    split_song(session_dir, path_to_audio, segment_length * 1000)
     
-    song_url = request.host_url + 'songs/' + filename
+    song_url = request.host_url + 'uploads/' + session_id + '/' + filename
     emit('song_ready', {'song_url': song_url})
     
-    static_path = os.path.join(upload_folder, '..','static')
+    static_path = os.path.join(session_dir,'static')
     
     ensure_dir_exists(static_path)
     
-    generate_and_predict_spectrograms(os.path.join(upload_folder, 'segments'), static_path)
+    generate_and_predict_spectrograms(os.path.join(session_dir, 'segments'), static_path, session_id)
     
 def save_file(file_path, song_data):
     print("Saving file to", file_path)
@@ -93,21 +104,27 @@ def save_file(file_path, song_data):
     else:
         print("Error: song_data is not in bytes format")
 
-@app.route('/songs/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+@app.route('/uploads/<session_id>/<path:filename>')
+def uploaded_file(session_id, filename):
+    return send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], session_id), filename)
 
-def split_song(file_path, segment_length_ms):
-    segment_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'segments')
+def split_song(session_dir, file_path, segment_length_ms):
+    segment_dir = os.path.join(session_dir, 'segments')
     if not os.path.isdir(segment_dir):
         print("Creating directory", segment_dir)
         os.makedirs(segment_dir, exist_ok=True)
         
     song = AudioSegment.from_wav(file_path)
+    num_segments = len(song) // segment_length_ms
+
+    progress_bar = tqdm(total=num_segments, desc="Splitting song into segments")
+
     for i in range(0, len(song), segment_length_ms):
         segment = song[i:i + segment_length_ms]
-        print("Exporting segment", i // segment_length_ms)
         segment.export(os.path.join(segment_dir, f"segment_{i // segment_length_ms}.wav"), format="wav")
+        progress_bar.update(1)
+
+    progress_bar.close()
         
 
 def clear_directory(directory):
@@ -121,7 +138,7 @@ def clear_directory(directory):
         except Exception as e:
             print('Failed to delete %s. Reason: %s' % (file_path, e))
 
-def generate_and_predict_spectrograms(audio_dir, output_dir, sr=44100):
+def generate_and_predict_spectrograms(audio_dir, output_dir, session_id, sr=44100):
     # Clear the output directory at the start of each call
     clear_directory(output_dir)
 
@@ -157,7 +174,8 @@ def generate_and_predict_spectrograms(audio_dir, output_dir, sr=44100):
         
         prediction = predict_on_segment(save_path)
         
-        spectrogram_url = url_for('static', filename=spec_filename)
+        spectrogram_url = url_for('uploaded_file', session_id=session_id, filename='static/' + spec_filename)
+
         
         # Emit prediction to the client
         emit('prediction_ready', {'index': segment_index, 'prediction': prediction, 'spectrogram_url': spectrogram_url})
@@ -202,21 +220,22 @@ def predict_on_segment(segment_path):
 # Load the pre-trained model
 
 # local
-#model_path = os.path.join(project_dir,'..','models', 'instrument_classifier3.pkl')
-#learn = load_learner(model_path)
+model_path = os.path.join(project_dir,'..','models', 'instrument_classifier3.pkl')
+learn = load_learner(model_path)
 
 
 # Huggingface
 REPO = "gruppe11/audio-classifier"
-FILENAME = "instrument_classifier3.pkl"
+FILENAME = "instrument_classifier4.pkl"
 
 model_url = hf_hub_url(REPO, FILENAME)
 
-model_path = hf_hub_download(REPO, FILENAME)
+#model_path = hf_hub_download(REPO, FILENAME)
 
-learn = load_learner(model_path)
+#learn = load_learner(model_path)
 
-print("Model loaded")
+print("Model loaded: " + str(learn))
 
 if __name__ == '__main__':
+    clear_directory(app.config['UPLOAD_FOLDER'])
     socketio.run(app, debug=True)

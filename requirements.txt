@@ -36,3 +36,4 @@ pydub
 numpy
 random
 tqdm
+kaggle
