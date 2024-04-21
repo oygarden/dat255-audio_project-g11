@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Song Instrument Analysis</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <style>
+        #predictionList li {
+            display: block;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #uploadContainer {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        #audioPlayerContainer {
+            margin-bottom: 20px;
+        }
+
+        #contentContainer {
+            display: flex;
+            justify-content: center; /* Centers the children horizontally */
+            width: 100%;
+        }
+
+        #predictionList {
+            width: 20%;
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+
+        #spectrogramContainer {
+            width: 50%;
+            height: 400px;
+            overflow: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Upload a Song for Instrument Analysis</h2>
+    <input type="file" id="songFile" accept="audio/*">
+    <button id="uploadButton" onclick="uploadSong()">Upload Song</button>
+    <p id="statusMessage"></p>
+
+    <div id="audioPlayerContainer"></div>
+
+    <div id="contentContainer">
+        <ul id="predictionList"></ul>
+        <div id="spectrogramContainer" style="overflow-x: auto; white-space: nowrap;"></div>
+    </div>
+
+    <script>
+        var socket = io.connect('http://' + document.domain + ':' + location.port);
+        console.log('Attempting to connect...');
+
+        socket.on('connect', function() {
+            console.log('Connected to the WebSocket server.');
+        });
+
+        function uploadSong() {
+            console.log('Attempting to upload song...');
+            var file = document.getElementById('songFile').files[0];
+            if (file) {
+                // Read the file as binary data
+                var reader = new FileReader();
+
+                reader.onload = function(evt) {
+
+                    // Directly emit the ArrayBuffer to the server
+                    socket.emit('song_uploaded', {filename: file.name, song_data: evt.target.result});
+
+                    document.getElementById('statusMessage').textContent = 'Song uploaded. Waiting for analysis...';
+
+                    // Clear the spectrogram container
+                    var spectrogramContainer = document.getElementById('spectrogramContainer');
+                    spectrogramContainer.innerHTML = '';
+
+                    // Clear the buffers
+                    predictions = {};
+                    spectrograms = {};
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                alert('Please select a song file to upload.');
+            }
+        }
+
+        var predictions = {/* segmentIndex: prediction, ... */}; // prediction data
+        var spectrograms = {/* segmentIndex: spectrogram_url, ... */}; // spectrogram URLs
+
+        socket.on('song_ready', function(data) {
+
+            var audioPlayerContainer = document.getElementById('audioPlayerContainer');
+            audioPlayerContainer.innerHTML = ''; // Clear existing content
+            var audio = document.createElement('audio');
+            audio.setAttribute('src', data.song_url);
+            audio.setAttribute('controls', 'true');
+            
+            // Disable the audio player initially
+            audio.disabled = true;
+            
+            audioPlayerContainer.appendChild(audio);
+
+            var segmentLength = 3; // Length of each segment in seconds
+    
+            audio.addEventListener('timeupdate', function() {
+                var currentSegmentIndex = Math.floor(audio.currentTime / segmentLength);
+                displayPredictionForSegment(currentSegmentIndex);
+            });
+        });
+
+        socket.on('prediction_ready', function(data) {
+            // Update the predictions dictionary
+            if (!(data.index in predictions)) {
+                predictions[data.index] = [];
+            }
+            
+            var predictionList = data.prediction;
+            predictions[data.index].push(...predictionList);
+    
+            // Get the audio element
+            var audio = document.getElementById('audioPlayerContainer').firstChild;
+
+            // Enable the audio player only if it is disabled and there are at least 3 segments ready
+            if (audio.disabled && Object.keys(predictions).length >= 3) {
+                audio.disabled = false;
+                document.getElementById('statusMessage').textContent = 'Ready to play.';
+            }
+
+            // Update the spectrograms dictionary
+            // There was a bug where it displayed spectrograms from a previously uploaded song
+            // Fix: Add a timestamp to the URL to force the browser to reload the image because the URL has changed
+            spectrograms[data.index] = data.spectrogram_url + '?t=' + new Date().getTime();
+        });
+        
+
+        var lastSegmentIndex = -1; // Initialize value of last segment index
+
+        function displayPredictionForSegment(index) {
+            if (index !== lastSegmentIndex) {
+                
+                var prediction = predictions[index];
+                console.log('Current Segment:', index);
+                if (prediction !== undefined) {
+                    console.log('Prediction:', prediction);
+                    // Clear the list and add the current prediction
+                    var predictionList = document.getElementById('predictionList');
+                    predictionList.innerHTML = '';
+                    prediction.forEach(function(pred) {
+                        var listItem = document.createElement('li');
+                        listItem.textContent = pred;
+                        predictionList.appendChild(listItem);
+                    });
+                }
+                lastSegmentIndex = index;
+
+                console.log('Displaying prediction for segment ' + index);
+    
+                // Display the spectrogram for the current segment
+                var spectrogramContainer = document.getElementById('spectrogramContainer');
+                var img = document.createElement('img');
+                img.setAttribute('src', spectrograms[index]);
+                img.style.display = 'inline-block'; // Display images side by side
+
+                console.log('Spectrogram url: ' + spectrograms[index])
+    
+                // Add the image to the spectrogram container
+                spectrogramContainer.appendChild(img);
+
+                // Add an onload handler to the image
+                img.onload = function() {
+                    // Automatically scroll to the right
+                    spectrogramContainer.scrollLeft = spectrogramContainer.scrollWidth;
+                };
+    
+                // Remove the first child of the spectrogram container if there are more than 5 children
+                if (spectrogramContainer.children.length > 5) {
+                    spectrogramContainer.removeChild(spectrogramContainer.firstChild);
+                }
+    
+                // Add an error handler to the image
+                img.onerror = function() { console.error('Error loading image'); };
+    
+                lastSegmentIndex = index;
+            }
+        }
+    </script>
+</body>
+</html>
