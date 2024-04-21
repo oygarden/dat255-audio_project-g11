@@ -1,11 +1,23 @@
 DAT255 Audio Classification Project
 ==============================
 
-![Python workflow](https://github.com/oygarden/dat255-audio_project-g11/actions/workflows/python-app.yml/badge.svg)
+# Deep learning audio classification
 
-Deep learning audio classification
+In this project we set out to train an AI model to detect the presence of musical instruments in sound clips. The data is converted into a spectrogram image showing frequencies over time and is fed into a visual learner to find the characteristics of each instrument.
 
-# Report
+![image](https://github.com/oygarden/dat255-audio_project-g11/assets/89018956/bf9a78f0-7686-425c-8d7d-11dfd0cda53b)
+
+## Datasets
+
+- [__Freesound Dataset Kaggle 2018 (FSDKaggle2018)__]()
+    - A large dataset containing 41 catagories of recorded sounds, but only those containing musical instruments are used resulting in 21 categories.
+- [__VocalSet: A Singing Voice Dataset__](https://zenodo.org/records/1193957)
+    - Audio recordings of professional singers using a variety of vocal techniques in different musical contexts.
+- [__Musical Instrument's Sound Dataset__](https://www.kaggle.com/datasets/soumendraprasad/musical-instruments-sound-dataset/code)
+    - A smaller dataset containing Guitar, Drums, Piano and Violin.
+- [__IRMAS: a dataset for instrument recognition in musical audio signals__](https://www.upf.edu/web/mtg/irmas)
+- [__Philharmonia__](https://philharmonia.co.uk/resources/sound-samples/)
+
 
 Given that our model is made to identifying the instruments present in a segment of music, it was logical to develop a user interface that allows users to upload a song and receive ongoing feedback regarding the instruments being played.
 
