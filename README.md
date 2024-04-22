@@ -77,6 +77,10 @@ Training a model can be done by running the `train_model.py` script. `python src
 - Non-spectrogram representations of the audio.
 
 
+# Conclusion
+
+The project was very fun to work with, even though there were some problems along the way. Although the project diverted a bit from the initial project description, we found it quite interesting and motivating to follow up this idea we had of classifying instruments as a song was playing. One negative might be that the building of a dataset took up more time than initially thought, and it would be beneficial to spend some more time fine tuning the actual models used. 
+
 ----
 
 # Project Description
