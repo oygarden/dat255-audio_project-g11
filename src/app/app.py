@@ -225,7 +225,7 @@ def predict_on_segment(segment_path):
 
 # Huggingface
 REPO = "gruppe11/audio-classifier"
-FILENAME = "instrument_classifier4.pkl"
+FILENAME = "instrument_classifier7.pkl"
 
 model_url = hf_hub_url(REPO, FILENAME)
 
