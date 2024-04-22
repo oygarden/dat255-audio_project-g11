@@ -1,0 +1,11 @@
+flask
+flask_socketio
+werkzeug
+pydub
+librosa
+numpy
+imageio
+matplotlib
+fastai
+huggingface_hub
+eventlet

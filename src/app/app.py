@@ -223,7 +223,6 @@ def predict_on_segment(segment_path):
 model_path = os.path.join(project_dir,'..','models', 'instrument_classifier3.pkl')
 learn = load_learner(model_path)
 
-
 # Huggingface
 REPO = "gruppe11/audio-classifier"
 FILENAME = "instrument_classifier4.pkl"
@@ -238,4 +237,4 @@ print("Model loaded: " + str(learn))
 
 if __name__ == '__main__':
     clear_directory(app.config['UPLOAD_FOLDER'])
-    socketio.run(app, debug=True)
+    socketio.run(app, host='0.0.0.0')
