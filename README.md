@@ -1,6 +1,13 @@
 DAT255 Audio Classification Project
 ==============================
 
+Group members:
+- Bjørn Egil Øygarden
+- Lars Magnus Nordeide
+- Bjørn-Sigurd Sælevik Fjose
+
+Demo of the application can be found [here](https://www.youtube.com/watch?v=8xIL1kVeMj0)
+
 # Deep learning audio classification
 
 In this project we set out to train an AI model to detect the presence of musical instruments in sound clips. The data is converted into a spectrogram image showing frequencies over time and is fed into a visual learner to find the characteristics of each instrument.
@@ -32,6 +39,11 @@ As predictions are made, both the spectrograms and the associated multi-label pr
 For the best experience, it is recommended to run the Flask server locally on your machine by running the `app.py` script. From project root: `python src/app/app.py`. The web-app can also be accessed [here](https://flask.onegard.no/). This deployment is in a simple minimal Docker container running on a small home server, so keep that in mind if the speeds are bit slow. 
 
 The `app.py` script uses a model hosted in a huggingface repo, which can be found [here](https://huggingface.co/gruppe11/audio-classifier/tree/main). 
+
+Screenshot of web client:
+![image](https://github.com/oygarden/dat255-audio_project-g11/assets/89018956/6de51455-1958-41df-9310-cf4cd23f58c3)
+
+
 # Local setup
 
 Before running anything locally, make sure you install the required dependencies from `requirements.txt`, or, if only running the Flask app, `requirements-prod.txt` will suffice. This can be done by running `pip install -r requirements.txt`.
@@ -44,6 +56,7 @@ If you want to download the datasets to your machine, you can run the `download_
 
 Now, to train a model to predict instruments, you will need to train it on a multi-label dataset of overlapping instruments. To create this dataset, you can run the `mix_audio_clips.py` script. `python src/features/mix_audio_clips.py`. Before you run it, you might want to adjust how many clips you would like to generate. This variable `n_clips` can be found at the bottom of the script inside `if __name__ == '__main__':`. This script will first sort the whole dataset into _frequency ranges_, and then it will generate clips based on complimenting frequency ranges. This is to mimic realistic mixing and to avoid muddy mixes.  
 
+
 # Generate spectrograms
 
 After the mixed clips have been generated, you can run the `generate_spectrogram.py` script. `python src/features/generate_spectrograms.py`. This will go through the audio clips and generate a corresponding spectrogram and add the path to the csv file. 
@@ -53,8 +66,20 @@ After the mixed clips have been generated, you can run the `generate_spectrogram
 Training a model can be done by running the `train_model.py` script. `python src/models/train_model.py`. Parameteres can be adjusted in the script. The model will be saved in `models` directory. If you wan to try this model with the Flask application, you can comment out the huggingface loader, and instead use the local loader. 
 
 
-Project Description
-------------
+# Problems
+
+- There were not many audio clips for bass and low frequency instruments.
+- There were some trouble when having up to 45 different classes for multi-labeling, so the labels were generalized.
+
+# Future
+
+- It would be interesting to validate on real labeled music.
+- Non-spectrogram representations of the audio.
+
+
+----
+
+# Project Description
 
 ### Introduction
 
